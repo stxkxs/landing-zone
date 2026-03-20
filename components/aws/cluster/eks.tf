@@ -17,6 +17,8 @@ module "eks" {
 
   authentication_mode = "API"
 
+  create_kms_key = false
+
   encryption_config = {
     provider_key_arn = module.kms.key_arn
     resources        = ["secrets"]
@@ -25,12 +27,28 @@ module "eks" {
   enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   # EKS managed add-ons (AWS-managed lifecycle)
+  # vpc-cni must be installed before node groups via before_compute
   addons = {
-    coredns    = { most_recent = true }
-    kube-proxy = { most_recent = true }
+    vpc-cni = {
+      most_recent                 = true
+      before_compute              = true
+      resolve_conflicts_on_create = "OVERWRITE"
+      configuration_values = jsonencode({
+        env = { ENABLE_PREFIX_DELEGATION = "true" }
+      })
+    }
+    coredns = {
+      most_recent                 = true
+      resolve_conflicts_on_create = "OVERWRITE"
+    }
+    kube-proxy = {
+      most_recent                 = true
+      resolve_conflicts_on_create = "OVERWRITE"
+    }
     aws-ebs-csi-driver = {
-      most_recent              = true
-      service_account_role_arn = module.ebs_csi_irsa.iam_role_arn
+      most_recent                 = true
+      resolve_conflicts_on_create = "OVERWRITE"
+      service_account_role_arn    = module.ebs_csi_irsa.iam_role_arn
     }
   }
 
@@ -48,14 +66,6 @@ module "eks" {
 
       labels = {
         "node-role" = "system"
-      }
-
-      taints = {
-        critical = {
-          key    = "CriticalAddonsOnly"
-          value  = "true"
-          effect = "NO_SCHEDULE"
-        }
       }
     }
   }

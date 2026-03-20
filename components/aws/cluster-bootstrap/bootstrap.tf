@@ -49,8 +49,8 @@ resource "helm_release" "cilium" {
 # Disable aws-node DaemonSet (Cilium replaces VPC CNI)
 ################################################################################
 
-resource "kubernetes_manifest" "disable_aws_node" {
-  manifest = {
+resource "kubectl_manifest" "disable_aws_node" {
+  yaml_body = yamlencode({
     apiVersion = "apps/v1"
     kind       = "DaemonSet"
     metadata = {
@@ -80,8 +80,9 @@ resource "kubernetes_manifest" "disable_aws_node" {
         }
       }
     }
-  }
+  })
 
+  force_new = true
   depends_on = [helm_release.cilium]
 }
 
@@ -144,8 +145,8 @@ resource "kubernetes_secret_v1" "argocd_cluster" {
 # ArgoCD Platform AppProject
 ################################################################################
 
-resource "kubernetes_manifest" "platform_project" {
-  manifest = {
+resource "kubectl_manifest" "platform_project" {
+  yaml_body = yamlencode({
     apiVersion = "argoproj.io/v1alpha1"
     kind       = "AppProject"
     metadata = {
@@ -164,7 +165,7 @@ resource "kubernetes_manifest" "platform_project" {
         kind  = "*"
       }]
     }
-  }
+  })
 
   depends_on = [helm_release.argocd]
 }
@@ -173,8 +174,8 @@ resource "kubernetes_manifest" "platform_project" {
 # App-of-Apps Bootstrap Application
 ################################################################################
 
-resource "kubernetes_manifest" "app_of_apps" {
-  manifest = {
+resource "kubectl_manifest" "app_of_apps" {
+  yaml_body = yamlencode({
     apiVersion = "argoproj.io/v1alpha1"
     kind       = "Application"
     metadata = {
@@ -199,7 +200,7 @@ resource "kubernetes_manifest" "app_of_apps" {
         }
       }
     }
-  }
+  })
 
   depends_on = [kubernetes_secret_v1.argocd_cluster]
 }

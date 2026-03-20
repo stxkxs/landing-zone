@@ -107,6 +107,20 @@ module "vpc_endpoints" {
       security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
       tags                = { Name = "${var.environment}-sts-endpoint" }
     }
+    eks = {
+      service             = "eks"
+      private_dns_enabled = true
+      subnet_ids          = module.vpc.private_subnets
+      security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
+      tags                = { Name = "${var.environment}-eks-endpoint" }
+    }
+    eks_auth = {
+      service             = "eks-auth"
+      private_dns_enabled = true
+      subnet_ids          = module.vpc.private_subnets
+      security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
+      tags                = { Name = "${var.environment}-eks-auth-endpoint" }
+    }
   }
 
   tags = local.tags

@@ -38,15 +38,27 @@ variable "public_subnet_ids" {
 
 # Cluster access
 variable "cluster_endpoint_public_access" {
-  description = "Enable public API endpoint (false for production)"
+  description = "Enable public API endpoint (requires VPC endpoints for eks and eks-auth if false)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "access_entries" {
   description = "EKS access entries for IAM principals"
   type        = any
-  default     = {}
+  default = {
+    admin_sso = {
+      principal_arn = "arn:aws:iam::351619759866:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_AdministratorAccess_1bd3786dce786114"
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 }
 
 # System node group
