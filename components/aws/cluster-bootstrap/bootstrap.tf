@@ -82,7 +82,7 @@ resource "kubectl_manifest" "disable_aws_node" {
     }
   })
 
-  force_new = true
+  force_new  = true
   depends_on = [helm_release.cilium]
 }
 

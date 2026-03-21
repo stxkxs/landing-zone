@@ -2,9 +2,6 @@
 set -euo pipefail
 
 # Parse outputs
-CRITICAL_TOPIC=$(jq -r '.sns_topic_arns.value.critical' outputs.json)
-WARNING_TOPIC=$(jq -r '.sns_topic_arns.value.warning' outputs.json)
-INFO_TOPIC=$(jq -r '.sns_topic_arns.value.info' outputs.json)
 DASHBOARD_URL=$(jq -r '.dashboard_url.value // "null"' outputs.json)
 
 # --- SNS Topics ---

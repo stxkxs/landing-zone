@@ -32,8 +32,8 @@ fi
 
 # --- Identity Store Groups ---
 echo "Checking identity store groups..."
-GROUPS=$(jq -r '.group_ids.value // {} | to_entries[] | "\(.key) \(.value)"' outputs.json)
-if [[ -n "$GROUPS" ]]; then
+ID_GROUPS=$(jq -r '.group_ids.value // {} | to_entries[] | "\(.key) \(.value)"' outputs.json)
+if [[ -n "$ID_GROUPS" ]]; then
   while IFS=' ' read -r GROUP_NAME GROUP_ID; do
     GROUP_STATUS=$(aws identitystore describe-group --identity-store-id "$IDENTITY_STORE_ID" --group-id "$GROUP_ID" --query 'DisplayName' --output text 2>/dev/null || echo "NOT_FOUND")
     if [[ "$GROUP_STATUS" == "NOT_FOUND" ]]; then
@@ -41,7 +41,7 @@ if [[ -n "$GROUPS" ]]; then
       exit 1
     fi
     echo "  ${GROUP_NAME}: exists (${GROUP_ID})"
-  done <<< "$GROUPS"
+  done <<< "$ID_GROUPS"
 else
   echo "  No identity store groups configured"
 fi

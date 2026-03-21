@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # Parse outputs
-ROLE_ARN=$(jq -r '.role_arn.value' outputs.json)
 ROLE_NAME=$(jq -r '.role_name.value' outputs.json)
 ALARM_ARN=$(jq -r '.alarm_arn.value' outputs.json)
 SNS_TOPIC_ARN=$(jq -r '.sns_topic_arn.value' outputs.json)

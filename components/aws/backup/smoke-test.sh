@@ -3,7 +3,6 @@ set -euo pipefail
 
 # Parse outputs
 VAULT_NAME=$(jq -r '.vault_name.value' outputs.json)
-VAULT_ARN=$(jq -r '.vault_arn.value' outputs.json)
 BACKUP_ROLE_ARN=$(jq -r '.backup_role_arn.value' outputs.json)
 NOTIFICATION_TOPIC=$(jq -r '.notification_topic_arn.value' outputs.json)
 
