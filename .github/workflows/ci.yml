@@ -1,0 +1,265 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  fmt:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.11.5"
+      - run: tofu fmt -check -recursive components/
+      - run: tofu fmt -check -recursive modules/
+
+  validate:
+    name: Validate (${{ matrix.cloud }}/${{ matrix.component }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # AWS components
+          - { cloud: aws, component: backup }
+          - { cloud: aws, component: break-glass }
+          - { cloud: aws, component: cluster }
+          - { cloud: aws, component: cluster-addons }
+          - { cloud: aws, component: cluster-bootstrap }
+          - { cloud: aws, component: cost }
+          - { cloud: aws, component: dns }
+          - { cloud: aws, component: druid }
+          - { cloud: aws, component: gateway }
+          - { cloud: aws, component: governance }
+          - { cloud: aws, component: llm }
+          - { cloud: aws, component: mlops }
+          - { cloud: aws, component: network }
+          - { cloud: aws, component: observability }
+          - { cloud: aws, component: org-compliance }
+          - { cloud: aws, component: org-cost }
+          - { cloud: aws, component: org-identity }
+          - { cloud: aws, component: org-networking }
+          - { cloud: aws, component: org-scp }
+          - { cloud: aws, component: org-security }
+          - { cloud: aws, component: pipeline }
+          - { cloud: aws, component: rag }
+          - { cloud: aws, component: secrets }
+          - { cloud: aws, component: service-quotas }
+          # GCP components
+          - { cloud: gcp, component: backup }
+          - { cloud: gcp, component: break-glass }
+          - { cloud: gcp, component: cluster }
+          - { cloud: gcp, component: cluster-addons }
+          - { cloud: gcp, component: cluster-bootstrap }
+          - { cloud: gcp, component: cost }
+          - { cloud: gcp, component: dns }
+          - { cloud: gcp, component: network }
+          - { cloud: gcp, component: observability }
+          - { cloud: gcp, component: org-compliance }
+          - { cloud: gcp, component: org-cost }
+          - { cloud: gcp, component: org-identity }
+          - { cloud: gcp, component: org-networking }
+          - { cloud: gcp, component: org-policy }
+          - { cloud: gcp, component: org-security }
+          - { cloud: gcp, component: secrets }
+          - { cloud: gcp, component: service-quotas }
+          # Azure components
+          - { cloud: azure, component: backup }
+          - { cloud: azure, component: break-glass }
+          - { cloud: azure, component: cluster }
+          - { cloud: azure, component: cluster-addons }
+          - { cloud: azure, component: cluster-bootstrap }
+          - { cloud: azure, component: cost }
+          - { cloud: azure, component: dns }
+          - { cloud: azure, component: network }
+          - { cloud: azure, component: observability }
+          - { cloud: azure, component: org-compliance }
+          - { cloud: azure, component: org-cost }
+          - { cloud: azure, component: org-identity }
+          - { cloud: azure, component: org-networking }
+          - { cloud: azure, component: org-policy }
+          - { cloud: azure, component: org-security }
+          - { cloud: azure, component: secrets }
+          - { cloud: azure, component: service-quotas }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.11.5"
+      - name: Init and Validate
+        working-directory: components/${{ matrix.cloud }}/${{ matrix.component }}
+        run: |
+          tofu init -backend=false -input=false
+          tofu validate
+
+  tflint:
+    name: TFLint (${{ matrix.cloud }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cloud: [aws, gcp, azure]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: latest
+      - run: tflint --init --config .tflint-${{ matrix.cloud }}.hcl
+      - run: tflint --recursive --config .tflint-${{ matrix.cloud }}.hcl components/${{ matrix.cloud }}/
+
+  checkov:
+    name: Security Scan (${{ matrix.cloud }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cloud: [aws, gcp, azure]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: components/${{ matrix.cloud }}/
+          framework: terraform
+          soft_fail: false
+          skip_check: ${{ matrix.cloud == 'aws' && 'CKV_AWS_144,CKV_AWS_145' || '' }}
+
+  plan:
+    name: Plan (${{ matrix.cloud }}/${{ matrix.env }}/${{ matrix.component }})
+    needs: [validate]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # AWS workload components × environments
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: network }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: cluster }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: cluster-addons }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: cluster-bootstrap }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: druid }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: gateway }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: governance }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: llm }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: mlops }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: pipeline }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: rag }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: dns }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: observability }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: secrets }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: cost }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: backup }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: break-glass }
+          - { cloud: aws, account: workload-dev, region: us-west-2, env: dev, component: service-quotas }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: network }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: cluster }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: cluster-addons }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: cluster-bootstrap }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: druid }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: gateway }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: governance }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: llm }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: mlops }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: pipeline }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: rag }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: dns }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: observability }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: secrets }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: cost }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: backup }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: break-glass }
+          - { cloud: aws, account: workload-staging, region: us-west-2, env: staging, component: service-quotas }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: network }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: cluster }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: cluster-addons }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: cluster-bootstrap }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: druid }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: gateway }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: governance }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: llm }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: mlops }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: pipeline }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: rag }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: dns }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: observability }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: secrets }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: cost }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: backup }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: break-glass }
+          - { cloud: aws, account: workload-prod, region: us-west-2, env: production, component: service-quotas }
+          # AWS org components
+          - { cloud: aws, account: management, region: us-west-2, env: org, component: org-compliance }
+          - { cloud: aws, account: management, region: us-west-2, env: org, component: org-cost }
+          - { cloud: aws, account: management, region: us-west-2, env: org, component: org-identity }
+          - { cloud: aws, account: management, region: us-west-2, env: org, component: org-networking }
+          - { cloud: aws, account: management, region: us-west-2, env: org, component: org-scp }
+          - { cloud: aws, account: management, region: us-west-2, env: org, component: org-security }
+          # GCP workload components (dev)
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: network }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: cluster }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: cluster-addons }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: cluster-bootstrap }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: dns }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: cost }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: observability }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: secrets }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: backup }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: break-glass }
+          - { cloud: gcp, account: workload-dev, region: us-central1, env: dev, component: service-quotas }
+          # Azure workload components (dev)
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: network }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: cluster }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: cluster-addons }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: cluster-bootstrap }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: dns }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: cost }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: observability }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: secrets }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: backup }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: break-glass }
+          - { cloud: azure, account: workload-dev, region: westus2, env: dev, component: service-quotas }
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.11.5"
+      - uses: gruntwork-io/terragrunt-action@v3
+        with:
+          tg_version: "0.99.4"
+
+      - name: Configure AWS credentials
+        if: matrix.cloud == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Authenticate to GCP
+        if: matrix.cloud == 'gcp'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Azure Login
+        if: matrix.cloud == 'azure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Plan
+        working-directory: live/${{ matrix.cloud }}/${{ matrix.account }}/${{ matrix.region }}/${{ matrix.env }}/${{ matrix.component }}
+        run: terragrunt plan -no-color
