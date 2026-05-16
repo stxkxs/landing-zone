@@ -233,7 +233,7 @@ resource "azurerm_role_assignment" "velero_disk_snapshot" {
 ################################################################################
 
 resource "azurerm_storage_account" "loki" {
-  name                     = "${replace(var.cluster_name, "-", "")}loki"
+  name                     = substr("${replace(var.cluster_name, "-", "")}loki${replace(var.subscription_id, "-", "")}", 0, 24)
   resource_group_name      = local.resource_group_name
   location                 = data.azurerm_kubernetes_cluster.this.location
   account_tier             = "Standard"
@@ -260,7 +260,7 @@ resource "azurerm_storage_container" "loki" {
 ################################################################################
 
 resource "azurerm_storage_account" "tempo" {
-  name                     = "${replace(var.cluster_name, "-", "")}tempo"
+  name                     = substr("${replace(var.cluster_name, "-", "")}tempo${replace(var.subscription_id, "-", "")}", 0, 24)
   resource_group_name      = local.resource_group_name
   location                 = data.azurerm_kubernetes_cluster.this.location
   account_tier             = "Standard"
@@ -287,7 +287,7 @@ resource "azurerm_storage_container" "tempo" {
 ################################################################################
 
 resource "azurerm_storage_account" "velero" {
-  name                     = "${replace(var.cluster_name, "-", "")}backups"
+  name                     = substr("${replace(var.cluster_name, "-", "")}backups${replace(var.subscription_id, "-", "")}", 0, 24)
   resource_group_name      = local.resource_group_name
   location                 = data.azurerm_kubernetes_cluster.this.location
   account_tier             = "Standard"
@@ -314,7 +314,7 @@ resource "azurerm_storage_container" "velero" {
 ################################################################################
 
 resource "azurerm_storage_account" "argo_workflows" {
-  name                     = "${replace(var.cluster_name, "-", "")}artifacts"
+  name                     = substr("${replace(var.cluster_name, "-", "")}artifacts${replace(var.subscription_id, "-", "")}", 0, 24)
   resource_group_name      = local.resource_group_name
   location                 = data.azurerm_kubernetes_cluster.this.location
   account_tier             = "Standard"

@@ -1,5 +1,8 @@
 terraform {
-  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/..//components/azure/managed-monitoring"
+  # `//` separator: copy the WHOLE repo-root into .terragrunt-cache, then run
+  # tofu from `components/azure/managed-monitoring` within. Required because
+  # the component references `../../../modules/azure/workload-identity`.
+  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/../..//components/azure/managed-monitoring"
 }
 
 locals {

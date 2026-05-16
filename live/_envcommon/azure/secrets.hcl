@@ -1,5 +1,10 @@
 terraform {
-  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/..//components/azure/secrets"
+  # `//` separator: copy the WHOLE repo-root into .terragrunt-cache, then run
+  # tofu from `components/azure/secrets` within. Required because the component
+  # references `../../../modules/azure/workload-identity` (a sibling tree to
+  # components/) — without `//`, terragrunt only copies the component dir and
+  # the modules path can't resolve.
+  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/../..//components/azure/secrets"
 }
 
 locals {

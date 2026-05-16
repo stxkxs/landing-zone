@@ -146,6 +146,9 @@ Four GitHub Actions workflows with conditional authentication per cloud (AWS OID
 | Document | Description |
 |----------|-------------|
 | [Onboarding Guide](docs/onboarding.md) | New engineer setup, tool installation, codebase walkthrough |
+| [First-time AWS Deploy](docs/first-deploy-aws.md) | Brand-new account → running EKS cluster (Identity Center, quotas, deploy order) |
+| [First-time Azure Deploy](docs/first-deploy-azure.md) | Brand-new subscription → running AKS cluster (Entra ID admin user, NAP, quotas) |
+| [First-time GCP Deploy](docs/first-deploy-gcp.md) | Brand-new project → running GKE cluster (APIs, Workload Identity, quotas) |
 | [Architecture](docs/architecture.md) | Design rationale, dependency graph, layer breakdown, security model |
 | [Operations](docs/operations.md) | Day-to-day procedures, CI/CD details, tenant management |
 | [Runbooks](docs/runbooks.md) | Step-by-step procedures for common operational scenarios |

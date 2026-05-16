@@ -1,5 +1,5 @@
 include "root" {
-  path = find_in_parent_folders()
+  path = find_in_parent_folders("root.hcl")
 }
 
 include "envcommon" {
@@ -9,5 +9,5 @@ include "envcommon" {
 
 inputs = {
   cluster_endpoint_public_access = true
-  system_node_min_size           = 1
+  system_node_count              = 1
 }

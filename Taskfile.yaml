@@ -65,6 +65,16 @@ tasks:
           cd live/{{.CLOUD}}/{{.ACCOUNT}}/{{.REGION}}/{{.ENVIRONMENT}}/{{.COMPONENT}} && terragrunt apply
         fi
 
+  destroy:
+    desc: "Destroy for CLOUD/ACCOUNT/REGION/ENVIRONMENT/COMPONENT. With COMPONENT=all, destroys in reverse dependency order."
+    cmds:
+      - |
+        if [ "{{.COMPONENT}}" = "all" ]; then
+          cd live/{{.CLOUD}}/{{.ACCOUNT}}/{{.REGION}}/{{.ENVIRONMENT}} && terragrunt run-all destroy
+        else
+          cd live/{{.CLOUD}}/{{.ACCOUNT}}/{{.REGION}}/{{.ENVIRONMENT}}/{{.COMPONENT}} && terragrunt destroy
+        fi
+
   # === Backend ===
 
   init-backend:

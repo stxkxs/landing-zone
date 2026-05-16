@@ -27,11 +27,66 @@ resource "azurerm_monitor_workspace" "this" {
 }
 
 ################################################################################
-# Workload Identity — grafana-agent remote-write into AMW
+# Data Collection Endpoint + Data Collection Rule
 #
-# Grafana Agent in the cluster (running with this UAMI) calls the AMW
-# remote-write endpoint with the AAD token. Needs Monitoring Metrics
-# Publisher role on the workspace.
+# Azure Managed Prometheus does NOT accept remote-write directly against the
+# AMW URL. The ingestion path is:
+#
+#   Prometheus client (grafana-agent)
+#     ──> POST <DCE.logs_ingestion_endpoint>/dataCollectionRules/
+#              <DCR.immutable_id>/streams/Microsoft-PrometheusMetrics/api/v1/write
+#         with `Bearer <AAD token>` from a UAMI that has the
+#         `Monitoring Metrics Publisher` role *on the DCR scope*
+#
+# The DCR routes the `Microsoft-PrometheusMetrics` stream into the AMW
+# destination. Without these resources, any remote-write call 404s and
+# nothing reaches Prometheus — even if the UAMI and AMW are correctly
+# configured.
+################################################################################
+
+resource "azurerm_monitor_data_collection_endpoint" "amw" {
+  name                = "${var.cluster_name}-amw-dce"
+  resource_group_name = data.azurerm_resource_group.this.name
+  location            = var.location
+
+  tags = local.tags
+}
+
+# `kind` is intentionally omitted on both the DCE and DCR. The "Linux" /
+# "Windows" kinds are for DCRs that source data from an in-VM agent
+# (syslog, performance counters, etc.) and have associated agent-side
+# bindings. For Managed Prometheus the DCR is just a routing pipe — the
+# data source is an HTTP remote-write call from outside Azure compute and
+# the only stream involved is the built-in `Microsoft-PrometheusMetrics`.
+# Setting kind=Linux with this stream fails 400 InvalidPayload.
+resource "azurerm_monitor_data_collection_rule" "amw" {
+  name                        = "${var.cluster_name}-amw-dcr"
+  resource_group_name         = data.azurerm_resource_group.this.name
+  location                    = var.location
+  data_collection_endpoint_id = azurerm_monitor_data_collection_endpoint.amw.id
+
+  destinations {
+    monitor_account {
+      monitor_account_id = azurerm_monitor_workspace.this.id
+      name               = "MonitoringAccount1"
+    }
+  }
+
+  data_flow {
+    streams      = ["Microsoft-PrometheusMetrics"]
+    destinations = ["MonitoringAccount1"]
+  }
+
+  tags = local.tags
+}
+
+################################################################################
+# Workload Identity — grafana-agent remote-write into AMW via DCR
+#
+# Grafana Agent in the cluster (running with this UAMI) calls the DCE
+# ingestion endpoint with an AAD token. The `Monitoring Metrics Publisher`
+# role must be assigned at the DCR scope — assigning it at the AMW scope
+# does NOT grant ingestion (Azure checks the DCR, not the AMW).
 ################################################################################
 
 module "grafana_agent_amw_identity" {
@@ -43,7 +98,7 @@ module "grafana_agent_amw_identity" {
   oidc_issuer_url = var.oidc_issuer_url
   namespace       = "monitoring"
   service_account = "grafana-agent"
-  scope           = azurerm_monitor_workspace.this.id
+  scope           = azurerm_monitor_data_collection_rule.amw.id
 
   role_assignments = ["Monitoring Metrics Publisher"]
 

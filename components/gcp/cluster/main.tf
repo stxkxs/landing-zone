@@ -89,7 +89,10 @@ resource "google_container_cluster" "this" {
     evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"
   }
 
-  # Release channel
+  # Release channel — REGULAR is "latest stable": new K8s minors land here
+  # ~3 months after RAPID once GCP has burn-tested them. RAPID = newest features
+  # with more churn. STABLE = ~6 months behind RAPID, GCP's "LTS equivalent"
+  # for slower-moving fleets.
   release_channel {
     channel = "REGULAR"
   }

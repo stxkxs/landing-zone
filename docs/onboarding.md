@@ -181,5 +181,11 @@ Each component in each environment has its own state file. State buckets are ver
 
 ## Next Steps
 
+- **First-time deploy walkthroughs** (account setup → running cluster):
+  - [AWS](first-deploy-aws.md) — IAM Identity Center, EKS, AMP/AMG
+  - [Azure](first-deploy-azure.md) — Entra ID admin user, AKS w/ NAP, AMW/AMG
+  - [GCP](first-deploy-gcp.md) — GKE, Workload Identity, Cloud Monitoring
 - [Architecture](architecture.md) -- design rationale, dependency graph, security model
 - [Operations](operations.md) -- day-to-day procedures, CI/CD details
+- [Runbooks](runbooks.md) -- incident procedures (drift, state locks, break-glass)
+- [Troubleshooting](troubleshooting.md) -- common errors and fixes

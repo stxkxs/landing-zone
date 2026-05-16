@@ -16,8 +16,20 @@ resource "helm_release" "cilium" {
     nodeinit = {
       enabled = true
     }
+    # IPAM mode rationale: "cluster-pool" is the correct choice for pure
+    # BYOCNI (network_plugin=none on AKS) where Cilium owns IPAM end-to-end.
+    # "delegated-plugin" is for Azure CNI Powered by Cilium — a managed AKS
+    # feature where Azure CNS allocates pod IPs and Cilium only handles the
+    # data plane. Mixing them up makes the operator's IP-allocator loop fail,
+    # which keeps agents from going Ready and cascades to coredns/etc. stuck
+    # in ContainerCreating. The pod CIDR here MUST stay disjoint from the
+    # VNet CIDR (network component) and the service CIDR (cluster component).
     ipam = {
-      mode = "delegated-plugin"
+      mode = "cluster-pool"
+      operator = {
+        clusterPoolIPv4PodCIDRList = [var.pod_cidr]
+        clusterPoolIPv4MaskSize    = 24
+      }
     }
     hubble = {
       enabled = true
@@ -40,6 +52,12 @@ resource "helm_release" "cilium" {
     }
   })]
 
+  # Helm needs more than 5 min on a fresh BYOCNI cluster: nodes flip Ready
+  # only once Cilium agent writes /etc/cni/net.d/05-cilium.conflist, then the
+  # operator's leader election, IPAM-init, and Hubble rollout all serialize
+  # behind that. 15 min is comfortable.
+  timeout = 900
+
   lifecycle {
     ignore_changes = all
   }
@@ -57,7 +75,42 @@ resource "helm_release" "argocd" {
   namespace        = "argocd"
   create_namespace = true
 
+  # Bootstrap-time scheduling: at the moment this runs, the only nodes that
+  # exist are the AKS system pool (which carries the `CriticalAddonsOnly`
+  # taint). NAP-provisioned worker nodes don't show up until ArgoCD applies
+  # the NodePool/AKSNodeClass CRs from aks-gitops — which can't happen until
+  # ArgoCD itself is running. So ArgoCD MUST tolerate the system-pool taint
+  # for the cold-start. Without this, the chart's pre-install Job
+  # (`argocd-redis-secret-init`) sits Pending and Helm times out at 5m.
+  # `global.tolerations` cascades to every workload + pre-install hook the
+  # chart deploys.
   values = [yamlencode({
+    global = {
+      tolerations = [{
+        key      = "CriticalAddonsOnly"
+        operator = "Exists"
+      }]
+    }
+    # Server-side diff: turn on globally because the per-app sync option
+    # `ServerSideDiff=true` is silently ignored by ArgoCD 2.13.x; the only
+    # path that actually flips the controller to server-side comparison is
+    # this argocd-cmd-params-cm key. Needed because Kubernetes 1.34+ added
+    # `.status.terminatingReplicas` to Deployment/StatefulSet schemas that
+    # ArgoCD's bundled structured-merge-diff doesn't recognize — without
+    # server-side diff every Deployment-shipping addon (cilium, cert-manager,
+    # external-dns, keda, falco, opencost, reloader…) fails comparison with
+    # `field not declared in schema`.
+    #
+    # The key name is `controller.diff.server.side` (NOT
+    # `...server.side.enabled` — some chart docs/blog posts have the older
+    # `.enabled` suffix, but the application-controller's env var binds to
+    # the suffix-less form: `ARGOCD_APPLICATION_CONTROLLER_SERVER_SIDE_DIFF
+    # <- controller.diff.server.side`).
+    configs = {
+      params = {
+        "controller.diff.server.side" = "true"
+      }
+    }
     server = {
       replicas = var.argocd_server_replicas
     }
@@ -71,6 +124,8 @@ resource "helm_release" "argocd" {
       replicas = var.argocd_appset_replicas
     }
   })]
+
+  timeout = 900
 
   depends_on = [helm_release.cilium]
 }
@@ -110,8 +165,8 @@ resource "kubernetes_secret_v1" "argocd_cluster" {
 # ArgoCD Platform AppProject
 ################################################################################
 
-resource "kubernetes_manifest" "platform_project" {
-  manifest = {
+resource "kubectl_manifest" "platform_project" {
+  yaml_body = yamlencode({
     apiVersion = "argoproj.io/v1alpha1"
     kind       = "AppProject"
     metadata = {
@@ -130,52 +185,22 @@ resource "kubernetes_manifest" "platform_project" {
         kind  = "*"
       }]
     }
-  }
+  })
 
   depends_on = [helm_release.argocd]
 }
 
 ################################################################################
-# Azure Key Vault ClusterSecretStore (referenced by External Secrets in
-# aks-gitops Druid catalog and any other ExternalSecret resources).
+# NOTE — Azure Key Vault ClusterSecretStore
 #
-# This depends on external-secrets being installed by the App-of-Apps
-# (wave 0). The CR will reconcile once the CRDs land — the lifecycle
-# wait_for_rollout = false in providers ensures plan/apply doesn't block.
-################################################################################
-
-resource "kubernetes_manifest" "azure_key_vault_secret_store" {
-  manifest = {
-    apiVersion = "external-secrets.io/v1"
-    kind       = "ClusterSecretStore"
-    metadata = {
-      name = "azure-key-vault"
-    }
-    spec = {
-      provider = {
-        azurekv = {
-          authType = "WorkloadIdentity"
-          vaultUrl = var.key_vault_uri
-          tenantId = var.tenant_id
-          serviceAccountRef = {
-            name      = "external-secrets"
-            namespace = "external-secrets"
-          }
-        }
-      }
-    }
-  }
-
-  field_manager {
-    force_conflicts = true
-  }
-
-  depends_on = [
-    kubernetes_secret_v1.argocd_cluster,
-    kubernetes_manifest.app_of_apps,
-  ]
-}
-
+# The ClusterSecretStore CR lives in aks-gitops at
+# `addons/bootstrap/external-secrets-stores/` and is reconciled by ArgoCD at
+# sync wave 1, after External Secrets (wave 0) installs its CRDs. Defining it
+# here in tofu would race ArgoCD's reconcile of the external-secrets Helm
+# release — kubectl_manifest fails fast on `resource [external-secrets.io/v1/
+# ClusterSecretStore] isn't valid for cluster` because the CRD doesn't exist
+# yet. GitOps owns CR-of-Helm-installed-CRD; tofu owns Helm releases + the
+# ArgoCD root.
 ################################################################################
 # App-of-Apps Root Application
 #
@@ -184,8 +209,8 @@ resource "kubernetes_manifest" "azure_key_vault_secret_store" {
 # per-cluster Applications (matrix generator over cluster secrets).
 ################################################################################
 
-resource "kubernetes_manifest" "app_of_apps" {
-  manifest = {
+resource "kubectl_manifest" "app_of_apps" {
+  yaml_body = yamlencode({
     apiVersion = "argoproj.io/v1alpha1"
     kind       = "Application"
     metadata = {
@@ -228,14 +253,13 @@ resource "kubernetes_manifest" "app_of_apps" {
         }
       }
     }
-  }
+  })
 
-  field_manager {
-    force_conflicts = true
-  }
+  force_conflicts   = true
+  server_side_apply = true
 
   depends_on = [
-    kubernetes_manifest.platform_project,
+    kubectl_manifest.platform_project,
     kubernetes_secret_v1.argocd_cluster,
   ]
 }

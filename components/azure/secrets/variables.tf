@@ -24,7 +24,13 @@ variable "oidc_issuer_url" {
 }
 
 variable "soft_delete_retention_days" {
-  description = "Number of days to retain soft-deleted Key Vault items"
+  description = "Number of days to retain soft-deleted Key Vault items. Min 7, max 90. For real production use 90 (defense in depth). For personal/portfolio use 7 so destroy/recreate cycles work quickly."
   type        = number
   default     = 90
+}
+
+variable "purge_protection_enabled" {
+  description = "Whether purge protection is enabled. When TRUE, the vault cannot be force-purged during the soft-delete window — required for compliance but a pain for test envs since destroy/recreate fails until the window expires (90 days max). Set FALSE for personal/portfolio envs."
+  type        = bool
+  default     = true
 }

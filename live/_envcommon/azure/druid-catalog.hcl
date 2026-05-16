@@ -1,5 +1,8 @@
 terraform {
-  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/..//components/azure/druid-catalog"
+  # `//` separator: copy the WHOLE repo-root into .terragrunt-cache, then run
+  # tofu from `components/azure/druid-catalog` within. Required because the
+  # component references `../../../modules/azure/workload-identity`.
+  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/../..//components/azure/druid-catalog"
 }
 
 locals {

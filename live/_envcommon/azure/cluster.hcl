@@ -1,5 +1,5 @@
 terraform {
-  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/..//components/azure/cluster"
+  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/../../components/azure/cluster"
 }
 
 locals {
@@ -19,6 +19,7 @@ dependency "network" {
     vnet_id            = "/subscriptions/mock/resourceGroups/mock/providers/Microsoft.Network/virtualNetworks/mock"
     private_subnet_ids = ["/subscriptions/mock/resourceGroups/mock/providers/Microsoft.Network/virtualNetworks/mock/subnets/private"]
     public_subnet_ids  = ["/subscriptions/mock/resourceGroups/mock/providers/Microsoft.Network/virtualNetworks/mock/subnets/public"]
+    nat_public_ips     = ["1.2.3.4"]
   }
 }
 
@@ -30,5 +31,6 @@ inputs = {
   vnet_id             = dependency.network.outputs.vnet_id
   private_subnet_ids  = dependency.network.outputs.private_subnet_ids
   public_subnet_ids   = dependency.network.outputs.public_subnet_ids
+  egress_public_ips   = dependency.network.outputs.nat_public_ips
   team                = "platform"
 }

@@ -6,11 +6,11 @@
 module "cert_manager_irsa" {
   source = "../../../modules/aws/workload-identity"
 
-  role_name              = "${local.irsa_role_prefix}-cert-manager"
-  oidc_provider_arn      = var.oidc_provider_arn
-  oidc_issuer            = var.oidc_issuer
-  namespace              = "cert-manager"
-  service_account        = "cert-manager"
+  role_name         = "${local.irsa_role_prefix}-cert-manager"
+  oidc_provider_arn = var.oidc_provider_arn
+  oidc_issuer       = var.oidc_issuer
+  namespace         = "cert-manager"
+  service_account   = "cert-manager"
 
   policy_statements = [
     {

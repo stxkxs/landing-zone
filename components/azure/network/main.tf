@@ -1,5 +1,7 @@
 locals {
-  vnet_cidr    = "10.0.0.0/16"
+  # VNet CIDR is parameterized so the whole network topology can be re-numbered
+  # without grepping. Must stay disjoint from the cluster service_cidr and the
+  # Cilium pod CIDR (see components/azure/cluster + aks-gitops cilium values).
   cluster_name = "${var.environment}-${var.cluster_name}"
 
   tags = {
@@ -24,7 +26,7 @@ resource "azurerm_virtual_network" "this" {
   name                = "${var.environment}-vnet"
   resource_group_name = data.azurerm_resource_group.this.name
   location            = var.location
-  address_space       = [local.vnet_cidr]
+  address_space       = [var.vnet_cidr]
 
   tags = local.tags
 }
@@ -39,7 +41,7 @@ resource "azurerm_subnet" "private" {
   name                 = "${var.environment}-private-${count.index}"
   resource_group_name  = data.azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
-  address_prefixes     = [cidrsubnet(local.vnet_cidr, 8, count.index + 10)]
+  address_prefixes     = [cidrsubnet(var.vnet_cidr, 8, count.index + 10)]
 }
 
 resource "azurerm_subnet" "public" {
@@ -48,7 +50,7 @@ resource "azurerm_subnet" "public" {
   name                 = "${var.environment}-public-${count.index}"
   resource_group_name  = data.azurerm_resource_group.this.name
   virtual_network_name = azurerm_virtual_network.this.name
-  address_prefixes     = [cidrsubnet(local.vnet_cidr, 8, count.index)]
+  address_prefixes     = [cidrsubnet(var.vnet_cidr, 8, count.index)]
 }
 
 ################################################################################
@@ -204,7 +206,9 @@ resource "azurerm_network_watcher" "this" {
 resource "azurerm_storage_account" "flow_logs" {
   count = var.enable_flow_logs ? 1 : 0
 
-  name                     = "${replace(var.environment, "-", "")}flowlogs"
+  # Globally-unique name: <env>flowlogs<6-char subscription hash>
+  # Storage account names cap at 24 chars; "productionflowlogs" = 18 chars + 6 = 24
+  name                     = substr("${replace(var.environment, "-", "")}flowlogs${replace(var.subscription_id, "-", "")}", 0, 24)
   resource_group_name      = data.azurerm_resource_group.this.name
   location                 = var.location
   account_tier             = "Standard"
@@ -213,35 +217,21 @@ resource "azurerm_storage_account" "flow_logs" {
   tags = local.tags
 }
 
-resource "azurerm_network_watcher_flow_log" "private" {
+# VNet flow logs (replaces NSG flow logs, which Azure stopped accepting new
+# creates of on 2025-06-30 and is retiring 2027-09-30).
+# One flow log per VNet captures all subnets; finer-grained per-NSG capture
+# is no longer needed since the VNet flow log includes NSG rule attribution.
+# https://learn.microsoft.com/azure/network-watcher/nsg-flow-logs-migrate
+resource "azurerm_network_watcher_flow_log" "vnet" {
   count = var.enable_flow_logs ? 1 : 0
 
-  name                 = "${var.environment}-private-nsg-flow-log"
+  name                 = "${var.environment}-vnet-flow-log"
   network_watcher_name = azurerm_network_watcher.this[0].name
   resource_group_name  = data.azurerm_resource_group.this.name
 
-  network_security_group_id = azurerm_network_security_group.private.id
-  storage_account_id        = azurerm_storage_account.flow_logs[0].id
-  enabled                   = true
-
-  retention_policy {
-    enabled = true
-    days    = 30
-  }
-
-  tags = local.tags
-}
-
-resource "azurerm_network_watcher_flow_log" "public" {
-  count = var.enable_flow_logs ? 1 : 0
-
-  name                 = "${var.environment}-public-nsg-flow-log"
-  network_watcher_name = azurerm_network_watcher.this[0].name
-  resource_group_name  = data.azurerm_resource_group.this.name
-
-  network_security_group_id = azurerm_network_security_group.public.id
-  storage_account_id        = azurerm_storage_account.flow_logs[0].id
-  enabled                   = true
+  target_resource_id = azurerm_virtual_network.this.id
+  storage_account_id = azurerm_storage_account.flow_logs[0].id
+  enabled            = true
 
   retention_policy {
     enabled = true

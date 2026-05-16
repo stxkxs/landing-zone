@@ -3,11 +3,6 @@ variable "subscription_id" {
   type        = string
 }
 
-variable "tenant_id" {
-  description = "Azure AD tenant ID (used by ClusterSecretStore for Azure Key Vault)"
-  type        = string
-}
-
 variable "location" {
   description = "Azure region of the AKS cluster"
   type        = string
@@ -38,11 +33,6 @@ variable "vnet_name" {
   type        = string
 }
 
-variable "key_vault_uri" {
-  description = "URI of the Azure Key Vault that External Secrets reads from"
-  type        = string
-}
-
 variable "team" {
   description = "Team name for resource tagging"
   type        = string
@@ -70,6 +60,12 @@ variable "cilium_operator_replicas" {
   description = "Number of Cilium operator replicas"
   type        = number
   default     = 1
+}
+
+variable "pod_cidr" {
+  description = "CIDR block from which Cilium allocates pod IPs (cluster-pool IPAM). MUST be disjoint from the VNet CIDR (network component) and the service CIDR (cluster component). Defaults to 10.244.0.0/16; mask size /24 per node = ~256 nodes worth of /16 with 256 pods/node."
+  type        = string
+  default     = "10.244.0.0/16"
 }
 
 variable "argocd_server_replicas" {

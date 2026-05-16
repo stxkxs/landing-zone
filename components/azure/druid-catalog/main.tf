@@ -2,9 +2,9 @@ locals {
   resource_group_name = trimsuffix(var.cluster_name, "-aks")
   identity_prefix     = "${var.cluster_name}-wi-druid-${var.tenant_name}"
 
-  # Storage account names are globally unique and limited to 24 chars,
-  # alphanumeric only. Truncate from the cluster_name + tenant.
-  storage_account_name = substr(replace("${var.cluster_name}druid${var.tenant_name}", "-", ""), 0, 24)
+  # Storage account names are globally unique across all of Azure and capped
+  # at 24 chars alphanumeric. Append a subscription hash for uniqueness.
+  storage_account_name = substr("${replace("${var.cluster_name}druid${var.tenant_name}", "-", "")}${replace(var.subscription_id, "-", "")}", 0, 24)
 
   postgres_name    = "${var.cluster_name}-druid-${var.tenant_name}"
   postgres_db_name = "druid"
@@ -57,7 +57,7 @@ resource "azurerm_postgresql_flexible_server" "this" {
   name                          = local.postgres_name
   resource_group_name           = data.azurerm_resource_group.this.name
   location                      = data.azurerm_resource_group.this.location
-  version                       = "16"
+  version                       = "17"
   administrator_login           = local.postgres_admin
   administrator_password        = random_password.postgres_admin.result
   delegated_subnet_id           = var.private_subnet_id

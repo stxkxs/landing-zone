@@ -20,14 +20,17 @@ data "azurerm_resource_group" "this" {
 ################################################################################
 
 resource "azurerm_key_vault" "this" {
-  name                = "${replace(var.resource_group_name, "-", "")}secrets"
+  # Key Vault names are globally unique across all Azure tenants and capped at
+  # 24 chars. Suffix with a slice of the subscription ID hash so the name
+  # doesn't collide with a vault someone else (or a past tenant) already took.
+  name                = substr("${replace(var.resource_group_name, "-", "")}secrets${replace(var.subscription_id, "-", "")}", 0, 24)
   resource_group_name = data.azurerm_resource_group.this.name
   location            = var.location
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
 
   soft_delete_retention_days = var.soft_delete_retention_days
-  purge_protection_enabled   = true
+  purge_protection_enabled   = var.purge_protection_enabled
   rbac_authorization_enabled = true
 
   network_acls {

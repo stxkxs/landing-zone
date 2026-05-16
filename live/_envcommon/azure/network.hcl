@@ -1,5 +1,5 @@
 terraform {
-  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/..//components/azure/network"
+  source = "${dirname(find_in_parent_folders("cloud.hcl"))}/../../components/azure/network"
 }
 
 locals {
